@@ -244,7 +244,7 @@ export const SearchApplicationApiIntegrationStage: React.FC = () => {
             <EuiText>
               <FormattedMessage
                 id="xpack.enterpriseSearch.searchApplications.searchApplication.searchApi.step4.clientUsageDescription"
-                defaultMessage="To get the most out of the client, use the javascript client's example template and follow our {searchapplicationGettingStartedDocLink} on building a search experience."
+                defaultMessage="We recommend using the JavaScript client's example template and following our {searchapplicationGettingStartedDocLink} on building a search experience."
                 values={{
                   searchapplicationGettingStartedDocLink: (
                     <EuiLink href={docLinks.searchApplicationsGettingStarted}>
