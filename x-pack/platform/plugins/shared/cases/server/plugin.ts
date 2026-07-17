@@ -25,9 +25,11 @@ import {
   APP_ID,
   CASE_ATTACHMENT_SAVED_OBJECT,
   CASE_COMMENT_SAVED_OBJECT,
+  CASE_FIELD_DEFINITION_SAVED_OBJECT,
   CASE_SAVED_OBJECT,
   CASE_TEMPLATE_SAVED_OBJECT,
   CASE_USER_ACTION_SAVED_OBJECT,
+  registerOwnerPrefix,
 } from '../common/constants';
 
 import type { CasesClient } from './client';
@@ -284,7 +286,9 @@ export class CasePlugin
     registerCaseWorkflowTriggers(plugins.workflowsExtensions);
 
     if (plugins.agentBuilder) {
-      registerCasesAgentBuilderTools(plugins.agentBuilder, getCasesClient, core);
+      registerCasesAgentBuilderTools(plugins.agentBuilder, getCasesClient, core, {
+        analyticsV2Enabled: this.caseConfig.analyticsV2.enabled,
+      });
     }
 
     return {
@@ -302,6 +306,9 @@ export class CasePlugin
       config: this.caseConfig,
       registerCloseReasonValidator: (owner: string, validator: CloseReasonValidator) => {
         this.closeReasonValidators.set(owner, validator);
+      },
+      registerOwnerPrefix: (owner: string, prefix: string) => {
+        registerOwnerPrefix(owner, prefix);
       },
     };
   }
@@ -376,16 +383,17 @@ export class CasePlugin
         //    works regardless of where in the in-flight SO migration
         //    (security-team#15066) a tenant sits — see
         //    `reconciliation/attachments_runner.ts`.
-        //  - The data view sub-service reads `cases-templates` SOs per-space
-        //    to derive runtime fields. Only included when templates is on
-        //    — `cases-templates` is registered with core only when
-        //    `xpack.cases.templates.enabled` is true (see
-        //    `saved_object_types/index.ts`), and naming it here when the
-        //    mapping isn't registered throws "Missing mappings for saved
-        //    objects types: 'cases-templates'" from
-        //    `createInternalRepository`. With templates off, the data view
-        //    sub-service short-circuits its template read and bootstraps
-        //    per-space data views with an empty runtime field overlay.
+        //  - The data view sub-service reads `cases-templates` AND
+        //    `cases-field-definitions` SOs per-space to derive runtime
+        //    fields (template fields plus global `isGlobal` field-library
+        //    fields). Only included when templates is on — both types are
+        //    registered with core only when `xpack.cases.templates.enabled`
+        //    is true (see `saved_object_types/index.ts`), and naming either
+        //    here when the mapping isn't registered throws "Missing mappings
+        //    for saved objects types: ..." from `createInternalRepository`.
+        //    With templates off, the data view sub-service short-circuits
+        //    its reads and bootstraps per-space data views with an empty
+        //    runtime field overlay.
         //  - The `/reset` admin route deletes per-space `index-pattern` SOs
         //    across namespaces. A request-scoped SO client can't do this:
         //    the spaces extension scopes `delete` to the request's namespace,
@@ -406,7 +414,9 @@ export class CasePlugin
           CASE_USER_ACTION_SAVED_OBJECT,
           CASE_COMMENT_SAVED_OBJECT,
           CASE_ATTACHMENT_SAVED_OBJECT,
-          ...(this.caseConfig.templates?.enabled ? [CASE_TEMPLATE_SAVED_OBJECT] : []),
+          ...(this.caseConfig.templates?.enabled
+            ? [CASE_TEMPLATE_SAVED_OBJECT, CASE_FIELD_DEFINITION_SAVED_OBJECT]
+            : []),
           'index-pattern',
         ]);
         const v2InternalSavedObjectsClient = new SavedObjectsClient(v2InternalRepository);
